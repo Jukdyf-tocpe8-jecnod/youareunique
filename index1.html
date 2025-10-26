@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mirror — Accept Yourself</title>
+  <style>
+    /* Reset-ish */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html,body { height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: #111; color: #fff; }
+
+    /* Layout */
+    .container {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .mirror {
+      position: relative;
+      width: min(900px, 96vw);
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    video#camera {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      /* mirror (flip horizontally) */
+      transform: scaleX(-1);
+      -webkit-transform: scaleX(-1);
+      /* smooth edges on transform */
+      will-change: transform;
+      display: block;
+    }
+
+    /* Overlay phrase */
+    .overlay {
+      position: absolute;
+      left: 50%;
+      top: 12%;
+      transform: translateX(-50%);
+      padding: 10px 16px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.2));
+      border-radius: 999px;
+      backdrop-filter: blur(4px) saturate(1.1);
+      -webkit-backdrop-filter: blur(4px);
+      text-align: center;
+      pointer-events: none; /* clicks go through to buttons if added later */
+    }
+
+    .overlay .phrase {
+      font-size: clamp(14px, 2.6vw, 24px);
+      letter-spacing: 0.2px;
+      line-height: 1.2;
+      font-weight: 600;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.03);
+    }
+
+    /* Controls area */
+    .controls {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      backdrop-filter: blur(6px);
+    }
+
+    button:active { transform: translateY(1px); }
+    button.secondary { background: rgba(255,255,255,0.03); }
+
+    /* Message when no camera */
+    .no-camera {
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      height: 100%;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .hint {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+
+    @media (max-width: 420px){
+      .overlay { top: 8%; }
+      button { padding: 6px 10px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="mirror" id="mirror">
+      <video id="camera" autoplay playsinline muted aria-label="Your camera mirror view"></video>
+
+      <div class="overlay" id="overlay">
+        <div class="phrase">Smile and accept who you are- because you are unique!</div>
+      </div>
+
+      <div class="controls" id="controls" aria-hidden="false">
+        <button id="togglePhrase">Hide phrase</button>
+        <button id="snapshot" class="secondary">Take snapshot</button>
+      </div>
+
+      <!-- shown only if camera unavailable -->
+      <div class="no-camera" id="noCamera" style="display:none;">
+        <div style="font-size:18px; font-weight:700;">Camera not available</div>
+        <div class="hint">Make sure you've allowed camera access and opened this page via HTTPS or localhost. If you're on a phone, grant camera permission in the browser settings.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const video = document.getElementById('camera');
+      const overlay = document.getElementById('overlay');
+      const toggleBtn = document.getElementById('togglePhrase');
+      const snapshotBtn = document.getElementById('snapshot');
+      const noCamera = document.getElementById('noCamera');
+      const controls = document.getElementById('controls');
+
+      // Request the user camera (prefer front-facing camera)
+      async function startCamera() {
+        try {
+          const constraints = {
+            audio: false,
+            video: {
+              facingMode: 'user', // front camera if available
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          video.srcObject = stream;
+          video.onloadedmetadata = () => video.play();
+          noCamera.style.display = 'none';
+          controls.style.display = 'flex';
+        } catch (err) {
+          console.error('Camera error:', err);
+          noCamera.style.display = 'block';
+          // hide video element when no camera
+          video.style.display = 'none';
+          overlay.style.display = 'none';
+          controls.style.display = 'none';
+        }
+      }
+
+      // Toggle phrase visibility
+      let phraseVisible = true;
+      toggleBtn.addEventListener('click', () => {
+        phraseVisible = !phraseVisible;
+        overlay.style.display = phraseVisible ? 'block' : 'none';
+        toggleBtn.textContent = phraseVisible ? 'Hide phrase' : 'Show phrase';
+      });
+
+      // Take snapshot (downloads a small mirrored image)
+      snapshotBtn.addEventListener('click', () => {
+        if (!video || !video.srcObject) return;
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        // Mirror the image back to normal (since the video is flipped via CSS)
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // Draw phrase text if visible
+        if (phraseVisible) {
+          const text = ‘Smile and accept who you are because- you are unique!’;
+          const maxFont = Math.round(w / 20);
+          ctx.font = `${maxFont}px system-ui, Arial`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.shadowColor = 'rgba(0,0,0,0.7)';
+          ctx.shadowBlur = 12;
+          const x = w / 2;
+          const y = Math.round(h * 0.12);
+          // draw with background pill
+          const padding = 18;
+          const metrics = ctx.measureText(text);
+          const textWidth = metrics.width;
+          ctx.fillStyle = 'rgba(0,0,0,0.45)';
+          ctx.fillRect(x - textWidth/2 - padding, y - maxFont, textWidth + padding*2, maxFont + padding/1.6);
+          // draw text
+          ctx.fillStyle = '#fff';
+          ctx.fillText(text, x, y);
+        }
+
+        // Create a download link
+        canvas.toBlob(blob => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mirror-snapshot.png';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+      });
+
+      // Start automatically
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        startCamera();
+      } else {
+        noCamera.style.display = 'block';
+        controls.style.display = 'none';
+        video.style.display = 'none';
+      }
+
+      // Helpful: stop camera when page hidden to save resources
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          const stream = video.srcObject;
+          if (stream && stream.getTracks) {
+            stream.getTracks().forEach(t => t.enabled = false);
+          }
+        } else {
+          const stream = video.srcObject;
+          if (stream && stream.getTracks) {
+            stream.getTracks().forEach(t => t.enabled = true);
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
